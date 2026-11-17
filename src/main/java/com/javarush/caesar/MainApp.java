@@ -10,14 +10,19 @@ import com.javarush.caesar.service.Validator;
 import java.util.List;
 import java.util.Scanner;
 
+/**
+ * Консольное приложение «Шифр Цезаря»: меню, ввод путей и ключа, запуск режимов.
+ */
 public class MainApp {
 
+    /** Алфавит шифра из задания. Порядок символов не менять: от него зависят ключи. */
     private static final char[] ALPHABET = {
             'а', 'б', 'в', 'г', 'д', 'е', 'ё', 'ж', 'з', 'и', 'й', 'к', 'л', 'м', 'н', 'о', 'п',
             'р', 'с', 'т', 'у', 'ф', 'х', 'ц', 'ч', 'ш', 'щ', 'ъ', 'ы', 'ь', 'э', 'ю', 'я',
             '.', ',', '«', '»', '"', '\'', ':', '!', '?', ' '
     };
 
+    /** Сколько лучших вариантов показывать при переборе короткого текста. */
     private static final int CANDIDATES_TO_SHOW = 5;
     /** Сколько символов из начала файла используется для подбора ключа. */
     private static final int ANALYSIS_CHARS = 100_000;
@@ -33,6 +38,7 @@ public class MainApp {
         new MainApp().run();
     }
 
+    /** Главный цикл: показывает меню и запускает выбранный режим, пока пользователь не выйдет. */
     private void run() {
         System.out.println("Шифр Цезаря: шифрование и расшифровка файлов");
         while (true) {
@@ -74,6 +80,7 @@ public class MainApp {
         System.out.println("0. Выход (или exit)");
     }
 
+    /** Режим 1: шифрует файл ключом, который вводит пользователь. */
     private void encryptFile() throws CipherException {
         String source = askExistingFile("Исходный файл: ");
         String destination = askDestination(source);
@@ -82,6 +89,7 @@ public class MainApp {
         System.out.println("Готово: зашифрованный текст записан в " + destination);
     }
 
+    /** Режим 2: расшифровывает файл известным ключом. */
     private void decryptFile() throws CipherException {
         String source = askExistingFile("Зашифрованный файл: ");
         String destination = askDestination(source);
@@ -90,14 +98,18 @@ public class MainApp {
         System.out.println("Готово: расшифрованный текст записан в " + destination);
     }
 
+    /**
+     * Режим 3: подбирает ключ перебором и расшифровывает файл.
+     * Ключ ищется по началу файла ({@link #ANALYSIS_CHARS} символов), затем весь файл расшифровывается блоками.
+     * Если расшифровка короткая, пользователь сам выбирает правильный вариант из лучших.
+     * Длина оценивается по расшифровке: в шифротексте пробелы тоже зашифрованы.
+     */
     private void bruteForceFile() throws CipherException {
         String source = askExistingFile("Зашифрованный файл: ");
         String destination = askDestination(source);
-        // ключ подбираем по началу файла, а расшифровываем потом весь файл блоками
         String text = fileManager.readBeginning(source, ANALYSIS_CHARS);
         List<BruteForce.Candidate> candidates = bruteForce.findBestCandidates(text, ALPHABET, CANDIDATES_TO_SHOW);
         BruteForce.Candidate chosen = candidates.get(0);
-        // длину оцениваем по расшифровке: в шифротексте пробелы тоже зашифрованы
         if (bruteForce.isTooShortForReliableResult(chosen.text())) {
             chosen = chooseCandidate(candidates);
         }
@@ -106,7 +118,14 @@ public class MainApp {
         System.out.println("Готово: ключ " + key + ", результат записан в " + destination);
     }
 
-    // для короткого текста автоматический выбор ненадежен - показываем лучшие варианты
+    /**
+     * Показывает лучшие варианты расшифровки и спрашивает, какой из них правильный.
+     * Нужен для короткого текста: там автоматический выбор ненадежен.
+     *
+     * @param candidates варианты, отсортированные от лучшего к худшему
+     * @return вариант, выбранный пользователем
+     * @throws CipherException если введен неверный номер
+     */
     private BruteForce.Candidate chooseCandidate(List<BruteForce.Candidate> candidates) throws CipherException {
         System.out.println("Текст короткий, автоматический подбор может ошибиться. Лучшие варианты:");
         for (int i = 0; i < candidates.size(); i++) {
@@ -120,11 +139,15 @@ public class MainApp {
                 return candidates.get(number - 1);
             }
         } catch (NumberFormatException e) {
-            // ниже бросим понятное исключение
+            // не число - сообщим об ошибке ниже
         }
         throw new CipherException("Нужно ввести номер от 1 до " + candidates.size() + ": " + input);
     }
 
+    /**
+     * Режим 4: подбирает ключ сравнением частот символов с файлом-образцом и расшифровывает файл.
+     * Как и в переборе, анализируется только начало файлов, а расшифровка идет блоками.
+     */
     private void statisticalFile() throws CipherException {
         String source = askExistingFile("Зашифрованный файл: ");
         String sample = askExistingFile("Файл-образец (незашифрованный текст того же автора): ");
@@ -137,6 +160,10 @@ public class MainApp {
         System.out.println("Готово: найден ключ " + key + ", результат записан в " + destination);
     }
 
+    /**
+     * @return путь к существующему файлу
+     * @throws CipherException если файла нет или это папка
+     */
     private String askExistingFile(String prompt) throws CipherException {
         String path = ask(prompt);
         if (!validator.isFileExists(path)) {
@@ -145,6 +172,11 @@ public class MainApp {
         return path;
     }
 
+    /**
+     * @param source исходный файл, который нельзя перезаписать
+     * @return путь для результата
+     * @throws CipherException если путь пустой или совпадает с исходным файлом
+     */
     private String askDestination(String source) throws CipherException {
         String path = ask("Файл для результата: ");
         if (path.isEmpty()) {
@@ -156,6 +188,10 @@ public class MainApp {
         return path;
     }
 
+    /**
+     * @return ключ от 0 до длины алфавита минус один
+     * @throws CipherException если введено не число или число вне диапазона
+     */
     private int askKey() throws CipherException {
         String input = ask("Ключ (от 0 до " + (ALPHABET.length - 1) + "): ");
         int key;
@@ -170,6 +206,7 @@ public class MainApp {
         return key;
     }
 
+    /** Выводит подсказку и возвращает строку, введенную пользователем, без пробелов по краям. */
     private String ask(String prompt) {
         System.out.print(prompt);
         return scanner.nextLine().trim();
