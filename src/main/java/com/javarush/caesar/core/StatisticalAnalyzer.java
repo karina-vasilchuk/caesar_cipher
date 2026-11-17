@@ -2,13 +2,25 @@ package com.javarush.caesar.core;
 
 import com.javarush.caesar.exception.CipherException;
 
+/**
+ * Взлом шифра Цезаря статистическим анализом: сравнивает частоты символов
+ * в расшифровке с частотами в образце - незашифрованном тексте того же автора.
+ */
 public class StatisticalAnalyzer {
 
+    /** Ключ, найденный последним вызовом {@link #decryptByStatistics}; -1, если вызова еще не было. */
     private int lastKey = -1;
 
     /**
      * Подбирает ключ по статистике: считает частоты символов в образце (текст того же автора)
      * и выбирает ключ, при котором частоты расшифровки ближе всего к частотам образца.
+     * Найденный ключ можно получить через {@link #getLastKey()}.
+     *
+     * @param encryptedText зашифрованный текст
+     * @param sampleText    незашифрованный текст того же автора
+     * @param alphabet      алфавит шифра
+     * @return расшифрованный текст
+     * @throws CipherException если в образце нет символов алфавита или в шифротексте есть символ вне алфавита
      */
     public String decryptByStatistics(String encryptedText, String sampleText, char[] alphabet)
             throws CipherException {
@@ -42,11 +54,16 @@ public class StatisticalAnalyzer {
         return bestText;
     }
 
+    /**
+     * @return ключ, найденный последним вызовом {@link #decryptByStatistics}
+     */
     public int getLastKey() {
         return lastKey;
     }
 
-    // доля каждого символа алфавита в тексте; null, если символов алфавита нет
+    /**
+     * @return доля каждого символа алфавита в тексте; null, если символов алфавита нет
+     */
     private double[] frequencies(String text, char[] alphabet) {
         int[] counts = new int[alphabet.length];
         int total = 0;
@@ -67,6 +84,9 @@ public class StatisticalAnalyzer {
         return result;
     }
 
+    /**
+     * @return позиция символа в алфавите или -1, если его там нет
+     */
     private int indexOf(char[] alphabet, char ch) {
         for (int i = 0; i < alphabet.length; i++) {
             if (alphabet[i] == ch) {
