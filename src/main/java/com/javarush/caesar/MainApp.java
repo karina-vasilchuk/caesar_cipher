@@ -7,6 +7,7 @@ import com.javarush.caesar.exception.CipherException;
 import com.javarush.caesar.service.FileManager;
 import com.javarush.caesar.service.Validator;
 
+import java.util.List;
 import java.util.Scanner;
 
 public class MainApp {
@@ -16,6 +17,8 @@ public class MainApp {
             'р', 'с', 'т', 'у', 'ф', 'х', 'ц', 'ч', 'ш', 'щ', 'ъ', 'ы', 'ь', 'э', 'ю', 'я',
             '.', ',', '«', '»', '"', '\'', ':', '!', '?', ' '
     };
+
+    private static final int CANDIDATES_TO_SHOW = 5;
 
     private final Scanner scanner = new Scanner(System.in);
     private final FileManager fileManager = new FileManager();
@@ -91,10 +94,33 @@ public class MainApp {
         String source = askExistingFile("Зашифрованный файл: ");
         String destination = askDestination(source);
         String text = fileManager.readFile(source);
-        String result = bruteForce.decryptByBruteForce(text, ALPHABET);
-        fileManager.writeFile(result, destination);
-        System.out.println("Готово: найден ключ " + bruteForce.getLastKey()
-                + ", результат записан в " + destination);
+        List<BruteForce.Candidate> candidates = bruteForce.findBestCandidates(text, ALPHABET, CANDIDATES_TO_SHOW);
+        BruteForce.Candidate chosen = candidates.get(0);
+        // длину оцениваем по расшифровке: в шифротексте пробелы тоже зашифрованы
+        if (bruteForce.isTooShortForReliableResult(chosen.text())) {
+            chosen = chooseCandidate(candidates);
+        }
+        fileManager.writeFile(chosen.text(), destination);
+        System.out.println("Готово: ключ " + chosen.key() + ", результат записан в " + destination);
+    }
+
+    // для короткого текста автоматический выбор ненадежен - показываем лучшие варианты
+    private BruteForce.Candidate chooseCandidate(List<BruteForce.Candidate> candidates) throws CipherException {
+        System.out.println("Текст короткий, автоматический подбор может ошибиться. Лучшие варианты:");
+        for (int i = 0; i < candidates.size(); i++) {
+            BruteForce.Candidate c = candidates.get(i);
+            System.out.println((i + 1) + ". [ключ " + c.key() + "] " + c.text());
+        }
+        String input = ask("Номер правильного варианта (1-" + candidates.size() + "): ");
+        try {
+            int number = Integer.parseInt(input);
+            if (number >= 1 && number <= candidates.size()) {
+                return candidates.get(number - 1);
+            }
+        } catch (NumberFormatException e) {
+            // ниже бросим понятное исключение
+        }
+        throw new CipherException("Нужно ввести номер от 1 до " + candidates.size() + ": " + input);
     }
 
     private void statisticalFile() throws CipherException {
