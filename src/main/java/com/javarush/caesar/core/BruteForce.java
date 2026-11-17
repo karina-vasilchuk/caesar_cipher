@@ -23,7 +23,7 @@ public class BruteForce {
         double bestScore = Double.NEGATIVE_INFINITY;
         String bestText = encryptedText;
         int bestKey = 0;
-        for (int key = 1; key < alphabet.length; key++) {
+        for (int key = 0; key < alphabet.length; key++) {
             String candidate = cipher.decrypt(encryptedText, key);
             double score = score(candidate);
             if (score > bestScore) {
