@@ -19,6 +19,8 @@ public class MainApp {
     };
 
     private static final int CANDIDATES_TO_SHOW = 5;
+    /** Сколько символов из начала файла используется для подбора ключа. */
+    private static final int ANALYSIS_CHARS = 100_000;
 
     private final Scanner scanner = new Scanner(System.in);
     private final FileManager fileManager = new FileManager();
@@ -76,8 +78,7 @@ public class MainApp {
         String source = askExistingFile("Исходный файл: ");
         String destination = askDestination(source);
         int key = askKey();
-        String text = fileManager.readFile(source);
-        fileManager.writeFile(cipher.encrypt(text, key), destination);
+        fileManager.transformFile(source, destination, block -> cipher.encrypt(block, key));
         System.out.println("Готово: зашифрованный текст записан в " + destination);
     }
 
@@ -85,23 +86,24 @@ public class MainApp {
         String source = askExistingFile("Зашифрованный файл: ");
         String destination = askDestination(source);
         int key = askKey();
-        String text = fileManager.readFile(source);
-        fileManager.writeFile(cipher.decrypt(text, key), destination);
+        fileManager.transformFile(source, destination, block -> cipher.decrypt(block, key));
         System.out.println("Готово: расшифрованный текст записан в " + destination);
     }
 
     private void bruteForceFile() throws CipherException {
         String source = askExistingFile("Зашифрованный файл: ");
         String destination = askDestination(source);
-        String text = fileManager.readFile(source);
+        // ключ подбираем по началу файла, а расшифровываем потом весь файл блоками
+        String text = fileManager.readBeginning(source, ANALYSIS_CHARS);
         List<BruteForce.Candidate> candidates = bruteForce.findBestCandidates(text, ALPHABET, CANDIDATES_TO_SHOW);
         BruteForce.Candidate chosen = candidates.get(0);
         // длину оцениваем по расшифровке: в шифротексте пробелы тоже зашифрованы
         if (bruteForce.isTooShortForReliableResult(chosen.text())) {
             chosen = chooseCandidate(candidates);
         }
-        fileManager.writeFile(chosen.text(), destination);
-        System.out.println("Готово: ключ " + chosen.key() + ", результат записан в " + destination);
+        int key = chosen.key();
+        fileManager.transformFile(source, destination, block -> cipher.decrypt(block, key));
+        System.out.println("Готово: ключ " + key + ", результат записан в " + destination);
     }
 
     // для короткого текста автоматический выбор ненадежен - показываем лучшие варианты
@@ -127,12 +129,12 @@ public class MainApp {
         String source = askExistingFile("Зашифрованный файл: ");
         String sample = askExistingFile("Файл-образец (незашифрованный текст того же автора): ");
         String destination = askDestination(source);
-        String text = fileManager.readFile(source);
-        String sampleText = fileManager.readFile(sample);
-        String result = statisticalAnalyzer.decryptByStatistics(text, sampleText, ALPHABET);
-        fileManager.writeFile(result, destination);
-        System.out.println("Готово: найден ключ " + statisticalAnalyzer.getLastKey()
-                + ", результат записан в " + destination);
+        String text = fileManager.readBeginning(source, ANALYSIS_CHARS);
+        String sampleText = fileManager.readBeginning(sample, ANALYSIS_CHARS);
+        statisticalAnalyzer.decryptByStatistics(text, sampleText, ALPHABET);
+        int key = statisticalAnalyzer.getLastKey();
+        fileManager.transformFile(source, destination, block -> cipher.decrypt(block, key));
+        System.out.println("Готово: найден ключ " + key + ", результат записан в " + destination);
     }
 
     private String askExistingFile(String prompt) throws CipherException {
